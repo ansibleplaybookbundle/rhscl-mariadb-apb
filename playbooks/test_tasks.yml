@@ -1,0 +1,37 @@
+---
+- name: "Include variables per apb plan"
+  include_vars:
+    file: "vars/{{ plan }}.yml"
+
+- debug:
+    msg: "{{ hostvars[inventory_hostname] }}"
+
+- name: "[TEST][{{ _apb_plan_id }}] Create new project"
+  openshift_v1_project:
+    name: '{{ namespace }}'
+    state: 'present'
+
+- name: "[TEST][{{ _apb_plan_id }}]"
+  include_role:
+    name: rhscl-mariadb-apb-openshift
+  vars:
+    action: 'provision'
+    state: 'present'
+
+- name: "[TEST][{{ _apb_plan_id }}]"
+  include_role:
+    name: rhscl-mariadb-apb-openshift
+  vars:
+    action: 'test'
+
+- name: "[TEST][{{ _apb_plan_id }}]"
+  include_role:
+   name: rhscl-mariadb-apb-openshift
+  vars:
+    action: 'deprovision'
+    state: 'absent'
+
+- name: "[TEST][{{ _apb_plan_id }}] Delete test project"
+  openshift_v1_project:
+    name: '{{ namespace }}'
+    state: 'absent'

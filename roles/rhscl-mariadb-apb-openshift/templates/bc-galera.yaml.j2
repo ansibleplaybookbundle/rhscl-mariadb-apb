@@ -1,0 +1,35 @@
+---
+apiVersion: v1
+kind: BuildConfig
+metadata:
+  name: "{{ service_name }}-{{ mariadb_version }}-galera"
+spec:
+  output:
+    to:
+      kind: ImageStreamTag
+      name: "{{ service_name }}-{{ mariadb_version_nodots }}-galera:latest"
+  source:
+    dockerfile: |
+      FROM {{ image }}
+      USER root
+
+      # Leaving here to figure out if I want to template this...
+      # REPOLIST=rhel-7-server-rpms,rhel-7-server-optional-rpms,rhel-server-rhscl-7-rpms,rhel-7-server-extras-rpms
+      # yum -y install --disablerepo "*" --enablerepo ${REPOLIST} --setopt=tsflags=nodocs $INSTALL_PKGS && \
+      RUN INSTALL_PKGS="rh-mariadb{{ mariadb_version_nodots }}-galera which MySQL-python" && \
+          yum -y install --setopt=tsflags=nodocs $INSTALL_PKGS && \
+          rpm -V $INSTALL_PKGS && \
+          yum clean all
+      USER 27
+      EXPOSE 4567 4568 4444
+    type: Dockerfile
+  strategy:
+    dockerStrategy:
+      from:
+        kind: ImageStreamTag
+        name: "{{ image.split('/')[-1] }}:latest"
+    type: Docker
+  triggers:
+  - imageChange: {}
+    type: ImageChange
+

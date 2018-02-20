@@ -1,0 +1,23 @@
+---
+apiVersion: v1
+kind: ImageStream
+metadata:
+  name: "{{ service_name }}-{{ mariadb_version_nodots }}-{{ _apb_plan_id }}"
+
+---
+apiVersion: v1
+kind: ImageStream
+metadata:
+  name: "{{ service_name }}-{{ mariadb_version_nodots }}-galera"
+
+---
+apiVersion: v1
+kind: ImageStream
+metadata:
+  name: "{{ image.split('/')[-1] }}"
+spec:
+  tags:
+  - from:
+      kind: DockerImage
+      name: "{{ image }}"
+    name: latest

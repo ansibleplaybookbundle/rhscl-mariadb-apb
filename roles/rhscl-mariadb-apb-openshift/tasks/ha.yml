@@ -1,0 +1,73 @@
+---
+# This module fails if the import ImageStream exists
+- name: Image Streams
+  openshift_v1_image_stream:
+    name: "{{ item.name }}"
+    namespace: "{{ namespace }}"
+    state: "{{ state }}"
+    spec_tags: "{{ item.tags | default(omit) }}"
+  ignore_errors: True
+  with_items:
+    - name: "{{ service_name }}-{{ mariadb_version_nodots }}-{{ _apb_plan_id }}"
+    - name: "{{ service_name }}-{{ mariadb_version_nodots }}-galera"
+    - name: "{{ image.split('/')[-1] }}"
+      tags:
+        - from:
+            kind: DockerImage
+            name: "{{ image }}"
+          name: latest
+
+# This module does not correctly implement `spec_cluster_ip` when setting
+# to 'None' still creates a clusterIP.
+- name: Template Service
+  template:
+    src: service.yaml.j2
+    dest: /tmp/service.yaml
+  register: svc
+
+- name: Apply Service
+  command: "oc apply -n {{ namespace }} -f {{ svc.dest | default(svc.path) }}"
+
+- name: Template BuildConfigs
+  template:
+    src: "{{ item }}.j2"
+    dest: "/tmp/{{ item }}"
+  register: bc
+  with_items:
+    - "bc-ha.yaml"
+    - "bc-galera.yaml"
+
+- name: Create BuildConfigs
+  openshift_v1_build_config:
+    name: "{{ (lookup('file', item.dest|default(item.path)) | from_yaml).metadata['name'] }}"
+    namespace: "{{ namespace }}"
+    state: "{{ state }}"
+    src: "{{ item.dest | default(item.path) }}"
+  with_items: "{{ bc.results }}"
+
+- name: Template StatefulSet
+  template:
+    src: statefulset.yaml.j2
+    dest: /tmp/statefulset.yaml
+  register: sfs
+
+# This module fails if the statefulset exists and state is present
+- name: Create StatefulSet
+  k8s_v1beta1_stateful_set:
+    name: "{{ service_name }}-{{ mariadb_version_nodots }}-{{ _apb_plan_id }}"
+    namespace: "{{ namespace }}"
+    src: "{{ sfs.dest | default(sfs.path) }}"
+    state: "{{ state }}"
+  ignore_errors: True
+
+
+- name: Wait for rollout of StatefulSet
+  k8s_v1beta1_stateful_set:
+    name: "{{ service_name }}-{{ mariadb_version_nodots }}-{{ _apb_plan_id }}"
+    namespace: "{{ namespace }}"
+  register: rollout
+  until: rollout['stateful_set']['status']['ready_replicas'] == rollout['stateful_set']['status']['replicas']
+  delay: 30
+  retries: 20
+  when: state == 'present'
+

@@ -1,4 +1,6 @@
 ---
+
+
 - block:
   - name: Find pod we need to update
     shell: oc get pods -n {{ namespace }} -l app=rhscl-mariadb-apb -o custom-columns=name:.metadata.name --no-headers
@@ -13,7 +15,9 @@
 
   - name: Copy over db backup
     shell: oc cp -n {{ namespace }} {{ oldpod.stdout }}:/tmp/db.dump /tmp/db.dump
-  when: update is defined
+  when:
+    - update is defined
+    - _apb_plan_id != "ha"
 
 - name: set {{ service_name }} service state to {{ state }}
   k8s_v1_service:
@@ -32,12 +36,24 @@
       protocol: TCP
       target_port: 3306
   register: mariadb_service
+  when:
+    - _apb_plan_id != "ha"
+    - action != "test"
 
 - include_tasks: dev.yml
-  when: _apb_plan_id == "dev"
+  when:
+    - _apb_plan_id == "dev"
+    - action != "test"
 
 - include_tasks: prod.yml
-  when: _apb_plan_id == "prod"
+  when:
+    - _apb_plan_id == "prod"
+    - action != "test"
+
+- include_tasks: ha.yml
+  when:
+    - _apb_plan_id == "ha"
+    - action != "test"
 
 - block:
   - name: Wait for mariadb to come up
@@ -76,7 +92,13 @@
       - "10.1"
       - "10.2"
     when: _apb_plan_id == "dev" or item != mariadb_version
-  when: update is defined
+  when:
+    - update is defined
+    - _apb_plan_id != "ha"
+
+- name: "[MARIADB_APB][MAIN] Test mariadb deployment"
+  include_tasks: test.yml
+  when: action == "test"
 
 - name: encode bind credentials
   asb_encode_binding:
@@ -87,4 +109,6 @@
       DB_USER: "{{ mariadb_user }}"
       DB_PASSWORD: "{{ mariadb_password }}"
       DB_NAME: "{{ mariadb_database }}"
-  when: state == "present"
+  when:
+    - state == "present"
+    - action != "test"

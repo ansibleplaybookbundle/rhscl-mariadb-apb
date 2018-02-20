@@ -1,9 +1,35 @@
 ---
+
 service_name: "{{ lookup('env','SERVICE_NAME') | default('rhscl-mariadb', true) }}"
 namespace: "{{ lookup('env','NAMESPACE') | default('rhscl-mariadb-apb', true) }}"
 mariadb_database: "{{ lookup('env','MARIADB_DATABASE') | default('', true) }}"
 mariadb_user: "{{ lookup('env','MARIADB_USER') | default('admin', true) }}"
 volume_size: "{{ lookup('env','VOLUME_SIZE') | default('10Gi', true) }}"
 mariadb_version: "{{ lookup('env','MARIADB_VERSION') | default('10.0', true) }}"
-image: "registry.access.redhat.com/rhscl/mariadb-{{ mariadb_version | replace('.', '') }}-rhel7"
+mariadb_version_nodots: "{{ mariadb_version | replace('.', '') }}"
+
+
+# http://jinja.pocoo.org/docs/2.10/templates/#whitespace-control
+# https://stackoverflow.com/a/21699210
+image: >-
+  {% if _apb_plan_id == "ha" -%}
+  registry.centos.org/centos/mariadb-{{ mariadb_version_nodots }}-centos7
+  {%- else %}
+  registry.access.redhat.com/rhscl/mariadb-{{ mariadb_version_nodots }}-rhel7
+  {%- endif %}
 state: present
+
+# Variables below are for the testing of the mariadb service.
+
+test_create_table: 'CREATE TABLE IF NOT EXISTS example_timestamp (id INT NOT NULL AUTO_INCREMENT PRIMARY KEY,data VARCHAR(100),cur_timestamp TIMESTAMP(6));'
+test_insert: 'INSERT INTO example_timestamp (data) VALUES ("The time of creation is:");'
+test_select: 'SELECT * FROM example_timestamp;'
+test_galera:
+  - 'SHOW GLOBAL STATUS LIKE "wsrep_local_state_comment";'
+  - 'SHOW GLOBAL STATUS LIKE "wsrep_connected";'
+  - 'SHOW GLOBAL STATUS LIKE "wsrep_ready";'
+
+test_galera_expected_results:
+  wsrep_connected: "ON"
+  wsrep_ready: "ON"
+  wsrep_local_state_comment: "Synced"
