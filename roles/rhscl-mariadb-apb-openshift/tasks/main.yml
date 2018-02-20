@@ -1,6 +1,4 @@
 ---
-
-
 - block:
   - name: Find pod we need to update
     shell: oc get pods -n {{ namespace }} -l app=rhscl-mariadb-apb -o custom-columns=name:.metadata.name --no-headers

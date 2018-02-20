@@ -8,6 +8,9 @@
     install_python_requirements: no
   - role: ansibleplaybookbundle.asb-modules
 
+# Currently only includes ha.
+# TODO: The other plans are unable to contact the mariadb service. Needs to be investigated.
+
   tasks:
     - include_tasks: test_tasks.yml
       vars:
