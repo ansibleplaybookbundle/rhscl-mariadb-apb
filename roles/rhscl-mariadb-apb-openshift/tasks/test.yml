@@ -1,0 +1,73 @@
+---
+- name: Get Pods
+  command: "oc -o json -n {{ namespace }} get pod -l app=rhscl-mariadb-apb"
+  register: pods
+
+- name: Get Service
+  command: "oc -o json -n {{ namespace }} get svc {{ service_name }}"
+  register: svc
+
+- set_fact:
+    svcobj: "{{ svc.stdout | from_json }}"
+
+- set_fact:
+    mysql_host: "{{ svcobj['spec']['clusterIP'] | default(service_name) }}"
+
+- set_fact:
+    podobj: "{{ pods.stdout | from_json }}"
+
+# Create table using service
+- name: Create Database Tables
+  command: >
+    oc -n {{ namespace }} exec -i {{ podobj['items'][0]['metadata']['name'] }} --
+    /opt/rh/rh-mariadb{{ mariadb_version_nodots }}/root/usr/bin/mysql
+    -h {{ service_name }}
+    -u {{ mariadb_user }}
+    -D {{ mariadb_database }}
+    -p'{{ mariadb_password }}'
+    -e '{{ test_create_table }}'
+
+# Create data using the pod name
+- name: Create Data
+  command: >
+    oc -n {{ namespace }} exec -i {{ item['metadata']['name'] }} --
+    /opt/rh/rh-mariadb{{ mariadb_version_nodots }}/root/usr/bin/mysql -h {{ item['metadata']['name'] }}
+    -u {{ mariadb_user }}
+    -D {{ mariadb_database }}
+    -p'{{ mariadb_password }}'
+    -e '{{ test_insert }}'
+  with_items: "{{ podobj['items'] }}"
+
+- name: Select Data
+  command: >
+    oc -n {{ namespace }} exec -i {{ item['metadata']['name'] }} --
+    /opt/rh/rh-mariadb{{ mariadb_version_nodots }}/root/usr/bin/mysql -h {{ item['metadata']['name'] }}
+    -u {{ mariadb_user }}
+    -D {{ mariadb_database }}
+    -p'{{ mariadb_password }}'
+    -e '{{ test_select }}'
+  with_items: "{{ podobj['items'] }}"
+
+- name: Confirm Galera Operation
+  command: >
+    oc -n {{ namespace }} exec -i {{ item[0]['metadata']['name'] }} --
+    /opt/rh/rh-mariadb{{ mariadb_version_nodots }}/root/usr/bin/mysql -h {{ item[0]['metadata']['name'] }}
+    -u root
+    -p'{{ mariadb_root_password }}'
+    -s
+    -N
+    -e '{{ item[1] }}'
+  with_nested:
+    - "{{ podobj['items'] }}"
+    - "{{ test_galera }}"
+  register: wsrep
+  when: _apb_plan_id == "ha"
+
+- name: Check Expected Results
+  fail:
+    msg: "Galera Error"
+  when:
+    - "item.stdout.split('\t')[1] != test_galera_expected_results[item.stdout.split('\t')[0]]"
+    - _apb_plan_id == "ha"
+  with_items: "{{ wsrep.results }}"
+

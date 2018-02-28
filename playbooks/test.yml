@@ -1,0 +1,21 @@
+---
+- name: "[MARIADB_APB][TEST] Test MariaDB APB"
+  hosts: localhost
+  gather_facts: False
+  connection: local
+  roles:
+  - role: ansible.kubernetes-modules
+    install_python_requirements: no
+  - role: ansibleplaybookbundle.asb-modules
+
+# Currently only includes ha.
+# TODO: The other plans are unable to contact the mariadb service. Needs to be investigated.
+
+  tasks:
+    - include_tasks: test_tasks.yml
+      vars:
+        plan: "{{ outer_item }}"
+      with_items:
+        - ha
+      loop_control:
+        loop_var: outer_item
