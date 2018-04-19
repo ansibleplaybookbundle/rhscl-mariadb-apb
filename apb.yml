@@ -100,7 +100,7 @@ plans:
         type: enum
         default: '1Gi'
         enum: ['1Gi', '5Gi', '10Gi']
-        title: PostgreSQL Volume Size
+        title: MariaDB Volume Size
         required: true
     updates_to:
       - dev
