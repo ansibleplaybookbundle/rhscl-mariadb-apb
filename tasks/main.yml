@@ -69,7 +69,7 @@
   asb_encode_binding:
     fields:
       DB_TYPE: "mysql"
-      DB_HOST: "{{ service_name }}"
+      DB_HOST: "{{ app_name }}"
       DB_PORT: "{{ mariadb_port}}"
       DB_USER: "{{ mariadb_user }}"
       DB_PASSWORD: "{{ mariadb_password }}"
